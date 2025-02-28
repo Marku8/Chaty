@@ -1,1 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proximity Chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/aws-amplify/5.0.14/aws-amplify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            width: 100%;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background-color: #4d13d1;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+        }
+        
+        .header .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .header .location-indicator {
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .location-indicator i {
+            color: #4caf50;
+        }
+        
+        .login-container, .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .login-container {
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+        }
+        
+        .login-form {
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .login-form h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            text-align: left;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        
+        .btn {
+            background-color: #4d13d1;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+        
+        .btn:hover {
+            background-color: #3b0f9e;
+        }
+        
+        .btn.secondary {
+            background-color: #757575;
+        }
+        
+        .btn.secondary:hover {
+            background-color: #616161;
+        }
+        
+        .chat-container {
+            display: none;
+        }
+        
+        .chat-sidebar {
+            width: 250px;
+            background-color: #f9f9f9;
+            border-right: 1px solid #eee;
+            padding: 15px;
+            overflow-y: auto;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .message {
+            max-width: 70%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+        }
+        
+        .message.sent {
+            align-self: flex-end;
+            background-color: #4d13d1;
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+        
+        .message.received {
+            align-self: flex-start;
+            background-color: #e9e9e9;
+            color: #333;
+            border-bottom-left-radius: 5px;
+        }
+        
+        .message .sender {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            margin-bottom: 2px;
+        }
+        
+        .message .time {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-top: 5px;
+            text-align: right;
+        }
+        
+        .chat-input {
+            display: flex;
+            padding: 15px;
+            background-color: white;
+            border-top: 1px solid #eee;
+        }
+        
+        .chat-input input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            font-size: 1rem;
+            margin-right: 10px;
+        }
+        
+        .user-list {
+            margin-top: 20px;
+        }
+        
+        .user-list h3 {
+            margin-bottom: 10px;
+            color: #555;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+        
+        .user-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 5px;
+            transition: background-color 0.2s;
+        }
+        
+        .user-item:hover {
+            background-color: #efefef;
+        }
+        
+        .user-item.active {
+            background-color: #e2d9f3;
+        }
+        
+        .user-avatar {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            background-color: #4d13d1;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .user-details {
+            flex: 1;
+        }
+        
+        .user-name {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .user-status {
+            font-size: 0.8rem;
+            color: #757575;
+        }
+        
+        .distance-indicator {
+            font-size: 0.7rem;
+            color: #4caf50;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        
+        .flex-container {
+            display: flex;
+            height: 100%;
+        }
+        
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .no-chat-selected {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #888;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .no-chat-selected i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: #ddd;
+        }
+        
+        .permission-warning {
+            display: none;
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            text-align: center;
+        }
+        
+        @media screen and (max-width: 768px) {
+            .flex-container {
+                flex-direction: column;
+            }
+            
+            .chat-sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #eee;
+                height: auto;
+                max-height: 200px;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Proximity Chat</h1>
+            <div class="user-info">
+                <div class="location-indicator">
+                    <i class="fas fa-location-dot"></i>
+                    <span id="location-status">Location: Waiting...</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="permission-warning" id="permission-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            Location permission is required for this app to find people nearby.
+            <button id="request-permission" class="btn secondary" style="margin-left: 10px; padding: 5px 10px; font-size: 0.9rem;">
+                Grant Permission
+            </button>
+        </div>
+        
+        <div class="login-container" id="login-container">
+            <div class="login-form">
+                <h2>Join the Conversation</h2>
+                <div class="input-group">
+                    <label for="username">Choose a Username</label>
+                    <input type="text" id="username" placeholder="e.g., JohnDoe123">
+                </div>
+                <button id="join-btn" class="btn">Join Chat</button>
+            </div>
+        </div>
+        
+        <div class="chat-container" id="chat-container">
+            <div class="flex-container">
+                <div class="chat-sidebar">
+                    <div class="user-list">
+                        <h3>People Nearby</h3>
+                        <div id="nearby-users">
+                            <!-- Nearby users will be added here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="main-content">
+                    <div class="no-chat-selected" id="no-chat-selected">
+                        <i class="fas fa-comments"></i>
+                        <h3>Select a person to start chatting</h3>
+                        <p>Find people nearby and connect with them</p>
+                    </div>
+                    
+                    <div class="chat-messages" id="chat-messages">
+                        <!-- Messages will be added here -->
+                    </div>
+                    
+                    <div class="chat-input">
+                        <input type="text" id="message-input" placeholder="Type a message...">
+                        <button id="send-btn" class="btn">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
+    <script>
+        // Configuration
+        const LOCATION_UPDATE_INTERVAL = 30000; // 30 seconds
+        const NEARBY_RADIUS = 5; // 5 kilometers
+        
+        // User state
+        let currentUser = {
+            id: '',
+            username: '',
+            location: null
+        };
+        
+        let selectedUser = null;
+        let nearbyUsers = [];
+        let messages = {};
+        
+        // DOM Elements
+        const loginContainer = document.getElementById('login-container');
+        const chatContainer = document.getElementById('chat-container');
+        const usernameInput = document.getElementById('username');
+        const joinBtn = document.getElementById('join-btn');
+        const nearbyUsersContainer = document.getElementById('nearby-users');
+        const chatMessages = document.getElementById('chat-messages');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const locationStatus = document.getElementById('location-status');
+        const noChatSelected = document.getElementById('no-chat-selected');
+        const permissionWarning = document.getElementById('permission-warning');
+        const requestPermissionBtn = document.getElementById('request-permission');
+        
+        // Initialize AWS Amplify (You would need to replace with your own AWS configuration)
+        /*
+        const awsConfig = {
+            Auth: {
+                identityPoolId: 'YOUR_IDENTITY_POOL_ID',
+                region: 'YOUR_REGION',
+                userPoolId: 'YOUR_USER_POOL_ID',
+                userPoolWebClientId: 'YOUR_USER_POOL_WEB_CLIENT_ID'
+            },
+            API: {
+                endpoints: [
+                    {
+                        name: 'proximityApi',
+                        endpoint: 'YOUR_API_GATEWAY_URL',
+                        region: 'YOUR_REGION'
+                    }
+                ]
+            }
+        };
+        
+        Amplify.configure(awsConfig);
+        */
+        
+        // Init
+        document.addEventListener('DOMContentLoaded', initialize);
+        
+        function initialize() {
+            // Attach event listeners
+            joinBtn.addEventListener('click', handleJoin);
+            sendBtn.addEventListener('click', sendMessage);
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') sendMessage();
+            });
+            requestPermissionBtn.addEventListener('click', requestLocationPermission);
+            
+            // Check location permission
+            checkLocationPermission();
+        }
+        
+        function checkLocationPermission() {
+            if (navigator.geolocation) {
+                navigator.permissions.query({ name: 'geolocation' }).then(result => {
+                    if (result.state === 'granted') {
+                        getCurrentLocation();
+                    } else if (result.state === 'prompt') {
+                        // Permission will be requested when needed
+                    } else {
+                        // Permission denied
+                        permissionWarning.style.display = 'block';
+                    }
+                });
+            }
+        }
+        
+        function requestLocationPermission() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        permissionWarning.style.display = 'none';
+                        getCurrentLocation();
+                    },
+                    error => {
+                        console.error('Error getting location:', error);
+                        permissionWarning.style.display = 'block';
+                    }
+                );
+            }
+        }
+        
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                locationStatus.textContent = 'Location: Updating...';
+                
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        const { latitude, longitude } = position.coords;
+                        currentUser.location = { latitude, longitude };
+                        locationStatus.textContent = 'Location: Active';
+                        
+                        // If user is already logged in, update their location
+                        if (currentUser.id) {
+                            updateUserLocation();
+                        }
+                        
+                        // Update nearby users
+                        fetchNearbyUsers();
+                    },
+                    error => {
+                        console.error('Error getting location:', error);
+                        locationStatus.textContent = 'Location: Error';
+                        permissionWarning.style.display = 'block';
+                    }
+                );
+            }
+        }
+        
+        function handleJoin() {
+            const username = usernameInput.value.trim();
+            
+            if (username.length < 3) {
+                alert('Username must be at least 3 characters long');
+                return;
+            }
+            
+            if (!currentUser.location) {
+                alert('Location is required to find people nearby');
+                requestLocationPermission();
+                return;
+            }
+            
+            // Create a new user
+            currentUser.id = uuid.v4();
+            currentUser.username = username;
+            
+            // In a real application, you would register the user with your backend here
+            // For demo purposes, we'll simulate this
+            createUser()
+                .then(() => {
+                    loginContainer.style.display = 'none';
+                    chatContainer.style.display = 'block';
+                    
+                    // Start location updates
+                    startLocationUpdates();
+                    
+                    // Fetch nearby users immediately
+                    fetchNearbyUsers();
+                    
+                    // Set up periodic fetching of nearby users
+                    setInterval(fetchNearbyUsers, LOCATION_UPDATE_INTERVAL);
+                })
+                .catch(error => {
+                    console.error('Error creating user:', error);
+                    alert('Failed to join chat. Please try again.');
+                });
+        }
+        
+        function startLocationUpdates() {
+            // Update location periodically
+            setInterval(() => {
+                getCurrentLocation();
+            }, LOCATION_UPDATE_INTERVAL);
+        }
+        
+        function createUser() {
+            // In a real application, this would be an API call to your backend
+            return new Promise((resolve) => {
+                // Simulate API delay
+                setTimeout(() => {
+                    console.log('User created:', currentUser);
+                    resolve();
+                }, 500);
+            });
+        }
+        
+        function updateUserLocation() {
+            // In a real application, this would be an API call to update the user's location
+            console.log('Updating user location:', currentUser.location);
+        }
+        
+        function fetchNearbyUsers() {
+            // In a real application, this would be an API call to get nearby users
+            // For demo purposes, we'll simulate it with random users
+            
+            // Clear previous users
+            nearbyUsers = [];
+            
+            // Generate 3-7 random users
+            const userCount = Math.floor(Math.random() * 5) + 3;
+            
+            for (let i = 0; i < userCount; i++) {
+                // Generate random coordinates within NEARBY_RADIUS km
+                const distance = Math.random() * NEARBY_RADIUS;
+                const angle = Math.random() * 2 * Math.PI;
+                
+                // Calculate random user location (simplified)
+                const lat = currentUser.location.latitude + (distance / 111) * Math.cos(angle);
+                const lng = currentUser.location.longitude + (distance / 111) * Math.sin(angle);
+                
+                const user = {
+                    id: uuid.v4(),
+                    username: getRandomUsername(),
+                    location: { latitude: lat, longitude: lng },
+                    distance: distance.toFixed(1)
+                };
+                
+                nearbyUsers.push(user);
+            }
+            
+            // Sort by distance
+            nearbyUsers.sort((a, b) => a.distance - b.distance);
+            
+            // Update UI
+            renderNearbyUsers();
+        }
+        
+        function getRandomUsername() {
+            const names = ['Alex', 'Taylor', 'Jordan', 'Casey', 'Riley', 'Jamie', 'Dakota', 'Avery', 'Quinn', 'Peyton'];
+            const adjectives = ['Happy', 'Smart', 'Cool', 'Bright', 'Fast', 'Clever', 'Bold', 'Swift', 'Kind', 'Calm'];
+            
+            const name = names[Math.floor(Math.random() * names.length)];
+            const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+            const number = Math
