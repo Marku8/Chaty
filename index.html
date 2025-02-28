@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Proximity Chat</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/aws-amplify/5.0.14/aws-amplify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
     <style>
@@ -418,33 +417,12 @@
         const permissionWarning = document.getElementById('permission-warning');
         const requestPermissionBtn = document.getElementById('request-permission');
         
-        // Initialize AWS Amplify (You would need to replace with your own AWS configuration)
-        /*
-        const awsConfig = {
-            Auth: {
-                identityPoolId: 'YOUR_IDENTITY_POOL_ID',
-                region: 'YOUR_REGION',
-                userPoolId: 'YOUR_USER_POOL_ID',
-                userPoolWebClientId: 'YOUR_USER_POOL_WEB_CLIENT_ID'
-            },
-            API: {
-                endpoints: [
-                    {
-                        name: 'proximityApi',
-                        endpoint: 'YOUR_API_GATEWAY_URL',
-                        region: 'YOUR_REGION'
-                    }
-                ]
-            }
-        };
-        
-        Amplify.configure(awsConfig);
-        */
-        
-        // Init
+        // Initialize on document load
         document.addEventListener('DOMContentLoaded', initialize);
         
         function initialize() {
+            console.log("Initializing application...");
+            
             // Attach event listeners
             joinBtn.addEventListener('click', handleJoin);
             sendBtn.addEventListener('click', sendMessage);
@@ -453,68 +431,51 @@
             });
             requestPermissionBtn.addEventListener('click', requestLocationPermission);
             
-            // Check location permission
-            checkLocationPermission();
-        }
-        
-        function checkLocationPermission() {
-            if (navigator.geolocation) {
-                navigator.permissions.query({ name: 'geolocation' }).then(result => {
-                    if (result.state === 'granted') {
-                        getCurrentLocation();
-                    } else if (result.state === 'prompt') {
-                        // Permission will be requested when needed
-                    } else {
-                        // Permission denied
-                        permissionWarning.style.display = 'block';
-                    }
-                });
-            }
+            // Always show permission warning initially to prompt user action
+            permissionWarning.style.display = 'block';
+            
+            // Explicitly request location immediately for better UX
+            requestLocationPermission();
         }
         
         function requestLocationPermission() {
+            console.log("Requesting location permission...");
+            locationStatus.textContent = 'Location: Requesting...';
+            
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     position => {
-                        permissionWarning.style.display = 'none';
-                        getCurrentLocation();
-                    },
-                    error => {
-                        console.error('Error getting location:', error);
-                        permissionWarning.style.display = 'block';
-                    }
-                );
-            }
-        }
-        
-        function getCurrentLocation() {
-            if (navigator.geolocation) {
-                locationStatus.textContent = 'Location: Updating...';
-                
-                navigator.geolocation.getCurrentPosition(
-                    position => {
+                        console.log("Location permission granted");
                         const { latitude, longitude } = position.coords;
                         currentUser.location = { latitude, longitude };
                         locationStatus.textContent = 'Location: Active';
+                        permissionWarning.style.display = 'none';
+                        
+                        // Generate fake data for demo purposes
+                        console.log("Location obtained:", latitude, longitude);
                         
                         // If user is already logged in, update their location
                         if (currentUser.id) {
                             updateUserLocation();
                         }
-                        
-                        // Update nearby users
-                        fetchNearbyUsers();
                     },
                     error => {
                         console.error('Error getting location:', error);
                         locationStatus.textContent = 'Location: Error';
                         permissionWarning.style.display = 'block';
-                    }
+                        alert("Location access is required for this app to function. Please enable location services and try again.");
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                 );
+            } else {
+                console.error("Geolocation not supported by this browser");
+                locationStatus.textContent = 'Location: Not Supported';
+                alert("Your browser doesn't support geolocation, which is required for this app.");
             }
         }
         
         function handleJoin() {
+            console.log("Join button clicked");
             const username = usernameInput.value.trim();
             
             if (username.length < 3) {
@@ -522,54 +483,29 @@
                 return;
             }
             
+            // For demo purposes, create a location if not available
             if (!currentUser.location) {
-                alert('Location is required to find people nearby');
-                requestLocationPermission();
-                return;
+                console.log("Location not available, using default location");
+                // Use a default location (New York City)
+                currentUser.location = { latitude: 40.7128, longitude: -74.0060 };
+                locationStatus.textContent = 'Location: Using Default';
             }
             
             // Create a new user
             currentUser.id = uuid.v4();
             currentUser.username = username;
             
-            // In a real application, you would register the user with your backend here
-            // For demo purposes, we'll simulate this
-            createUser()
-                .then(() => {
-                    loginContainer.style.display = 'none';
-                    chatContainer.style.display = 'block';
-                    
-                    // Start location updates
-                    startLocationUpdates();
-                    
-                    // Fetch nearby users immediately
-                    fetchNearbyUsers();
-                    
-                    // Set up periodic fetching of nearby users
-                    setInterval(fetchNearbyUsers, LOCATION_UPDATE_INTERVAL);
-                })
-                .catch(error => {
-                    console.error('Error creating user:', error);
-                    alert('Failed to join chat. Please try again.');
-                });
-        }
-        
-        function startLocationUpdates() {
-            // Update location periodically
-            setInterval(() => {
-                getCurrentLocation();
-            }, LOCATION_UPDATE_INTERVAL);
-        }
-        
-        function createUser() {
-            // In a real application, this would be an API call to your backend
-            return new Promise((resolve) => {
-                // Simulate API delay
-                setTimeout(() => {
-                    console.log('User created:', currentUser);
-                    resolve();
-                }, 500);
-            });
+            console.log("User created:", currentUser);
+            
+            // Switch to chat view
+            loginContainer.style.display = 'none';
+            chatContainer.style.display = 'block';
+            
+            // Generate nearby users immediately
+            fetchNearbyUsers();
+            
+            // Set up periodic fetching of nearby users
+            setInterval(fetchNearbyUsers, LOCATION_UPDATE_INTERVAL);
         }
         
         function updateUserLocation() {
@@ -578,8 +514,7 @@
         }
         
         function fetchNearbyUsers() {
-            // In a real application, this would be an API call to get nearby users
-            // For demo purposes, we'll simulate it with random users
+            console.log("Fetching nearby users...");
             
             // Clear previous users
             nearbyUsers = [];
@@ -619,4 +554,177 @@
             
             const name = names[Math.floor(Math.random() * names.length)];
             const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
-            const number = Math
+            const number = Math.floor(Math.random() * 100);
+            
+            return `${adjective}${name}${number}`;
+        }
+        
+        function renderNearbyUsers() {
+            console.log("Rendering nearby users:", nearbyUsers.length);
+            
+            // Clear container
+            nearbyUsersContainer.innerHTML = '';
+            
+            // Add each user
+            nearbyUsers.forEach(user => {
+                const userEl = document.createElement('div');
+                userEl.className = 'user-item';
+                userEl.dataset.userId = user.id;
+                
+                // Get initials for avatar
+                const initials = user.username.charAt(0).toUpperCase();
+                
+                userEl.innerHTML = `
+                    <div class="user-avatar">${initials}</div>
+                    <div class="user-details">
+                        <div class="user-name">${user.username}</div>
+                        <div class="user-status">
+                            <div class="distance-indicator">
+                                <i class="fas fa-location-dot"></i>
+                                ${user.distance} km away
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                userEl.addEventListener('click', () => {
+                    selectUser(user);
+                });
+                
+                nearbyUsersContainer.appendChild(userEl);
+            });
+        }
+        
+        function selectUser(user) {
+            console.log("User selected:", user.username);
+            
+            // Update selected user
+            selectedUser = user;
+            
+            // Update UI
+            document.querySelectorAll('.user-item').forEach(el => {
+                el.classList.remove('active');
+                if (el.dataset.userId === user.id) {
+                    el.classList.add('active');
+                }
+            });
+            
+            // Show chat area
+            noChatSelected.style.display = 'none';
+            chatMessages.style.display = 'flex';
+            document.querySelector('.chat-input').style.display = 'flex';
+            
+            // Initialize message array for this user if not exists
+            if (!messages[user.id]) {
+                messages[user.id] = [];
+            }
+            
+            // Render messages
+            renderMessages();
+        }
+        
+        function renderMessages() {
+            if (!selectedUser) return;
+            
+            console.log("Rendering messages for user:", selectedUser.username);
+            
+            // Clear container
+            chatMessages.innerHTML = '';
+            
+            // Add each message
+            const userMessages = messages[selectedUser.id] || [];
+            
+            userMessages.forEach(msg => {
+                const messageEl = document.createElement('div');
+                messageEl.className = `message ${msg.senderId === currentUser.id ? 'sent' : 'received'}`;
+                
+                const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                messageEl.innerHTML = `
+                    ${msg.senderId !== currentUser.id ? `<div class="sender">${selectedUser.username}</div>` : ''}
+                    <div class="content">${msg.content}</div>
+                    <div class="time">${time}</div>
+                `;
+                
+                chatMessages.appendChild(messageEl);
+            });
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function sendMessage() {
+            if (!selectedUser) return;
+            
+            const content = messageInput.value.trim();
+            if (!content) return;
+            
+            console.log("Sending message to:", selectedUser.username);
+            
+            // Create message object
+            const message = {
+                id: uuid.v4(),
+                senderId: currentUser.id,
+                receiverId: selectedUser.id,
+                content: content,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Add to messages array
+            if (!messages[selectedUser.id]) {
+                messages[selectedUser.id] = [];
+            }
+            messages[selectedUser.id].push(message);
+            
+            // Clear input
+            messageInput.value = '';
+            
+            // Render messages
+            renderMessages();
+            
+            // Simulate a reply after a random delay
+            simulateReply();
+        }
+        
+        function simulateReply() {
+            if (!selectedUser) return;
+            
+            // Random delay between 1-3 seconds
+            const delay = Math.floor(Math.random() * 2000) + 1000;
+            
+            setTimeout(() => {
+                console.log("Simulating reply from:", selectedUser.username);
+                
+                // Create reply message
+                const replies = [
+                    "Hi there! How's it going?",
+                    "Nice to meet you! Are you from around here?",
+                    "Hey! What brings you to this area?",
+                    "Hello! Beautiful day, isn't it?",
+                    "Hi! I'm pretty new to this app. How about you?",
+                    "Hey there! Any recommendations for good places to eat nearby?",
+                    "Hello! Have you been to any interesting events in the area lately?",
+                    "Hi! What do you like to do around here?"
+                ];
+                
+                const reply = {
+                    id: uuid.v4(),
+                    senderId: selectedUser.id,
+                    receiverId: currentUser.id,
+                    content: replies[Math.floor(Math.random() * replies.length)],
+                    timestamp: new Date().toISOString()
+                };
+                
+                // Add to messages array
+                messages[selectedUser.id].push(reply);
+                
+                // Render messages
+                renderMessages();
+            }, delay);
+        }
+        
+        // Log initial status on load
+        console.log("Proximity Chat app loaded!");
+    </script>
+</body>
+</html>
